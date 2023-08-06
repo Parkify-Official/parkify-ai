@@ -1,3 +1,4 @@
+# imports
 import cv2
 import numpy as np
 from skimage.io import imread
@@ -9,9 +10,12 @@ from skimage.util import invert
 from scipy.spatial.distance import euclidean
 from PIL import Image
 from tensorflow.keras.models import load_model
-# import requests
+
 
 def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model_num.h5'):
+    '''
+    function to extract alphanumeric characters(of a number plate) from an image of a car
+    '''
     try:
         # read the image and convert it to grayscale
         car = imread(img_path)
@@ -26,14 +30,10 @@ def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model
 
         # blur the image to remove any noise
         blurred_gray_img = gaussian(gray_img)
-
-        thresh = threshold_otsu(gray_img)
         
-        thresh = 0.46
+        thresh = 0.46 # experimentally calculated through otsu thresholding
         binary = invert(gray_img > thresh)
         label_image = label(binary, connectivity=2) # Find connected regions
-
-
 
         text_like_regions = []
         for region in regionprops(label_image):
@@ -41,7 +41,7 @@ def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model
             w = maxc - minc
             h = maxr - minr
 
-            asr = w/h
+            asr = w/h # aspect ratio
 
             region_area = w*h
 
@@ -49,7 +49,7 @@ def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model
             img_area = wid*hei
 
             
-            if region_area > img_area/5000 and region_area < (0.2 * img_area) and asr < 1 and h > w:
+            if region_area > img_area/5000 and region_area < (0.2 * img_area) and asr < 1:
                 text_like_regions.append(region)
 
         all_points = []
@@ -59,12 +59,10 @@ def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model
 
         # Define the threshold for ymin, ymax difference and area similarity
         y_threshold = 5  # Adjust this value as needed
-        # area_similarity_threshold = 0.5  # Adjust this value as needed
 
         # Sort the list of bounding boxes based on ymin (y-coordinate)
         sorted_boxes = sorted(all_points, key=lambda box: box[1])
 
-        # Initialize variables
         groups = []
         current_group = []
 
@@ -111,9 +109,11 @@ def get_plate(img_path, model_alpha_path='model_alpha.h5', model_num_path='model
             x = np.expand_dims(license_plate, axis=0)
 
             if index in [0, 1, 4, 5]:
+                # only 0, 1, 4, 5th index of number plates contain alphabets
                 prediction = np.argmax(alpha.predict(x/255.))
                 predictions.append(chr(ord('A') + prediction))
             else:
+                # rest of the indices contain numbers
                 prediction = np.argmax(num.predict(x/255.))
                 predictions.append(chr(ord('0') + prediction))
 
